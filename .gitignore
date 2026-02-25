@@ -28,6 +28,16 @@ yarn-error.log*
 # local env files
 .env*.local
 
+# uploads
+/uploads
+
+# SQLite database (persisted via Railway volume in production)
+/data
+
+# Other projects / artifacts
+/hotel-booking-mvp
+*.docx
+
 # vercel
 .vercel
 
