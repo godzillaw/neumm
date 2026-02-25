@@ -1,8 +1,8 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "python3", "gcc", "gnumake"]
+nixPkgs = ["nodejs_20", "python311", "gcc", "gnumake"]
 
 [phases.install]
-cmds = ["npm ci"]
+cmds = ["npm ci --ignore-scripts", "npm rebuild better-sqlite3"]
 
 [phases.build]
 cmds = ["npm run build"]
