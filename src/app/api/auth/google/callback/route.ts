@@ -83,7 +83,7 @@ export async function GET(request: Request) {
     // Issue JWT
     const token = signToken({ sub: user.id, email: user.email, name: user.name });
 
-    const res = NextResponse.redirect(`${baseUrl}/`);
+    const res = NextResponse.redirect(`${baseUrl}/neummai`);
     res.headers.set('Set-Cookie', buildSetCookieHeader(token));
     return res;
 

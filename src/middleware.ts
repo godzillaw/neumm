@@ -2,8 +2,12 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const PUBLIC_PATHS = [
+  '/login',
+  '/signup',
+  // keep old paths working as redirects (handled below)
   '/auth/login',
   '/auth/signup',
+  // API auth routes
   '/api/auth/login',
   '/api/auth/signup',
   '/api/auth/logout',
@@ -11,13 +15,9 @@ const PUBLIC_PATHS = [
   '/api/auth/google/callback',
 ];
 
-// JWT verification without importing Node.js-only modules
-// We do a lightweight check: just verify the cookie exists and is a valid-looking JWT
-// Full verification happens in each API route via getUserFromRequest
 function hasValidCookie(request: NextRequest): boolean {
   const cookieValue = request.cookies.get('cib_token')?.value;
   if (!cookieValue) return false;
-  // A JWT has 3 dot-separated base64url parts
   const parts = cookieValue.split('.');
   return parts.length === 3 && parts.every((p) => p.length > 0);
 }
@@ -25,7 +25,19 @@ function hasValidCookie(request: NextRequest): boolean {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Always allow public paths and static assets
+  // Redirect old /auth/login → /login and /auth/signup → /signup
+  if (pathname === '/auth/login' || pathname.startsWith('/auth/login?')) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    return NextResponse.redirect(url);
+  }
+  if (pathname === '/auth/signup' || pathname.startsWith('/auth/signup?')) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/signup';
+    return NextResponse.redirect(url);
+  }
+
+  // Allow public paths and static assets
   if (
     PUBLIC_PATHS.some((p) => pathname.startsWith(p)) ||
     pathname.startsWith('/_next') ||
@@ -34,15 +46,14 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Allow all /api routes to pass through (they do their own auth via getUserFromRequest)
-  // except we redirect browser navigation to login if no cookie
+  // Allow API routes (they do their own auth)
   if (pathname.startsWith('/api/')) {
     return NextResponse.next();
   }
 
-  // For page routes: redirect to login if no valid cookie
+  // For all page routes: require valid cookie or redirect to /login
   if (!hasValidCookie(request)) {
-    const loginUrl = new URL('/auth/login', request.url);
+    const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('next', pathname);
     return NextResponse.redirect(loginUrl);
   }
@@ -52,7 +63,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Match all routes except static files
     '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 };

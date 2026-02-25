@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
-    window.location.href = '/auth/login';
+    window.location.href = '/login';
   }, []);
 
   return (
