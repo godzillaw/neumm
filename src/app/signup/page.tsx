@@ -69,23 +69,10 @@ function SignupContent() {
     }
   };
 
-  const handleGoogle = async () => {
+  const handleGoogle = () => {
     setError(null);
     setGoogleLoading(true);
-    try {
-      // Check if Google OAuth is configured before redirecting
-      const check = await fetch('/api/auth/google', { method: 'GET', redirect: 'manual' });
-      if (check.status === 503 || check.status === 0) {
-        setError('Google sign-in is not configured yet. Please sign up with email and password.');
-        setGoogleLoading(false);
-        return;
-      }
-      // If configured, the API returns a redirect — follow it
-      window.location.href = '/api/auth/google';
-    } catch {
-      setError('Could not connect to Google. Please use email and password.');
-      setGoogleLoading(false);
-    }
+    window.location.href = '/api/auth/google';
   };
 
   return (
