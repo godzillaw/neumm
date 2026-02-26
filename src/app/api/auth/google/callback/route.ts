@@ -26,13 +26,13 @@ export async function GET(request: Request) {
     const error = searchParams.get('error');
 
     if (error || !code) {
-      return NextResponse.redirect(`${baseUrl}/auth/login?error=google_denied`);
+      return NextResponse.redirect(`${baseUrl}/login?error=google_denied`);
     }
 
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
     if (!clientId || !clientSecret) {
-      return NextResponse.redirect(`${baseUrl}/auth/login?error=oauth_not_configured`);
+      return NextResponse.redirect(`${baseUrl}/login?error=oauth_not_configured`);
     }
 
     const redirectUri = `${baseUrl}/api/auth/google/callback`;
@@ -52,7 +52,7 @@ export async function GET(request: Request) {
 
     if (!tokenRes.ok) {
       console.error('[Google callback] Token exchange failed:', await tokenRes.text());
-      return NextResponse.redirect(`${baseUrl}/auth/login?error=token_exchange_failed`);
+      return NextResponse.redirect(`${baseUrl}/login?error=token_exchange_failed`);
     }
 
     const tokens = await tokenRes.json() as GoogleTokenResponse;
@@ -63,13 +63,13 @@ export async function GET(request: Request) {
     });
 
     if (!userInfoRes.ok) {
-      return NextResponse.redirect(`${baseUrl}/auth/login?error=userinfo_failed`);
+      return NextResponse.redirect(`${baseUrl}/login?error=userinfo_failed`);
     }
 
     const googleUser = await userInfoRes.json() as GoogleUserInfo;
 
     if (!googleUser.email_verified) {
-      return NextResponse.redirect(`${baseUrl}/auth/login?error=email_not_verified`);
+      return NextResponse.redirect(`${baseUrl}/login?error=email_not_verified`);
     }
 
     // Upsert user in DB
@@ -89,6 +89,6 @@ export async function GET(request: Request) {
 
   } catch (err) {
     console.error('[Google callback] Error:', err);
-    return NextResponse.redirect(`${baseUrl}/auth/login?error=server_error`);
+    return NextResponse.redirect(`${baseUrl}/login?error=server_error`);
   }
 }
