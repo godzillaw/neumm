@@ -604,46 +604,8 @@ RETURN FORMAT — JSON only, no other text:
       }));
     };
 
-    // Per-day staffing count vs requirement
-    const dayStaffing = DAYS.map(day => ({
-      day,
-      available: EDUCATORS.filter(e => availability[e.id][day]).length,
-      required: TOTAL_REQUIRED,
-    }));
-    const understaffedDays = dayStaffing.filter(d => d.available < d.required);
-
     return (
       <div>
-        {understaffedDays.length > 0 && (
-          <div style={{
-            background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10,
-            padding: '14px 18px', marginBottom: 16,
-          }}>
-            <div style={{ fontWeight: 700, fontSize: 14, color: '#991B1B', marginBottom: 8 }}>
-              🚨 Understaffing Warning
-            </div>
-            <div style={{ fontSize: 13, color: '#7F1D1D', marginBottom: 10 }}>
-              You need <strong>{TOTAL_REQUIRED} educators per day</strong> to meet ACECQA ratios
-              (Nursery {ROOMS[0].minRequired} + Toddlers {ROOMS[1].minRequired} + Preschool {ROOMS[2].minRequired}).
-              The following days fall short:
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-              {understaffedDays.map(({ day, available, required }) => (
-                <div key={day} style={{
-                  background: '#FEE2E2', borderRadius: 6, padding: '4px 10px',
-                  fontSize: 12, fontWeight: 600, color: '#991B1B',
-                }}>
-                  {DAY_LABELS[day]}: {available}/{required} staff
-                </div>
-              ))}
-            </div>
-            <div style={{ fontSize: 12, color: '#991B1B', fontStyle: 'italic' }}>
-              💡 This roster cannot fully meet ratio requirements with current staffing.
-              Consider hiring additional educators or reducing room capacity on short days.
-            </div>
-          </div>
-        )}
-
         <div className="card">
           <div className="card-header">
             <div>
@@ -879,7 +841,42 @@ RETURN FORMAT — JSON only, no other text:
       }));
     };
 
+    const understaffedDays = DAYS.map(day => ({
+      day,
+      available: EDUCATORS.filter(e => availability[e.id][day]).length,
+    })).filter(d => d.available < TOTAL_REQUIRED);
+
     return (
+      <div>
+        {understaffedDays.length > 0 && (
+          <div style={{
+            background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10,
+            padding: '14px 18px', marginBottom: 16,
+          }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#991B1B', marginBottom: 8 }}>
+              🚨 Understaffing Warning
+            </div>
+            <div style={{ fontSize: 13, color: '#7F1D1D', marginBottom: 10 }}>
+              You need <strong>{TOTAL_REQUIRED} educators per day</strong> to meet ACECQA ratios
+              (Nursery {ROOMS[0].minRequired} + Toddlers {ROOMS[1].minRequired} + Preschool {ROOMS[2].minRequired}).
+              The following days fall short:
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+              {understaffedDays.map(({ day, available }) => (
+                <div key={day} style={{
+                  background: '#FEE2E2', borderRadius: 6, padding: '4px 10px',
+                  fontSize: 12, fontWeight: 600, color: '#991B1B',
+                }}>
+                  {DAY_LABELS[day]}: {available}/{TOTAL_REQUIRED} staff
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 12, color: '#991B1B', fontStyle: 'italic' }}>
+              💡 This roster cannot fully meet ratio requirements with current staffing.
+              Consider hiring additional educators or reducing room capacity on short days.
+            </div>
+          </div>
+        )}
       <div className="roster-layout">
         {/* Main grid */}
         <div className="roster-main">
@@ -977,6 +974,7 @@ RETURN FORMAT — JSON only, no other text:
         <div className="compliance-sidebar">
           <CompliancePanel compliance={compliance} />
         </div>
+      </div>
       </div>
     );
   }
