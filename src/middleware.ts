@@ -13,6 +13,8 @@ const PUBLIC_PATHS = [
   '/api/auth/logout',
   '/api/auth/google',
   '/api/auth/google/callback',
+  // Static demo tools (no auth required)
+  '/storypark-rostering.html',
 ];
 
 function hasValidCookie(request: NextRequest): boolean {
