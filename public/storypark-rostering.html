@@ -334,13 +334,16 @@
   const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
   const DAY_LABELS = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday' };
 
+  // minRequired = ceil(capacity / ratio) — full capacity, no occupancy discount
   const ROOMS = [
     { id: 'nursery',   label: 'Nursery',   capacity: 8,  ratio: 4,  bg: '#DBEAFE', text: '#1D4ED8', dot: '#3B82F6' },
     { id: 'toddlers',  label: 'Toddlers',  capacity: 12, ratio: 5,  bg: '#D1FAE5', text: '#065F46', dot: '#10B981' },
     { id: 'preschool', label: 'Preschool', capacity: 20, ratio: 11, bg: '#FEF3C7', text: '#92400E', dot: '#F59E0B' },
-  ];
+  ].map(r => ({ ...r, minRequired: Math.ceil(r.capacity / r.ratio) }));
+  // → Nursery: 2, Toddlers: 3, Preschool: 2 — total 7 per day
 
-  const OCCUPANCY = 0.8;
+  const TOTAL_REQUIRED = ROOMS.reduce((s, r) => s + r.minRequired, 0);
+
   const SOLE_EDUCATOR_MIN = ['Diploma', 'ECT'];
   const ROOM_CYCLE = ['nursery', 'toddlers', 'preschool', null];
 
@@ -356,25 +359,65 @@
   /* ================================================================
      COMPLIANCE CHECK (runs client-side after every change)
   ================================================================ */
-  function checkCompliance(rosterState) {
+  function checkCompliance(rosterState, availability) {
     const results = {};
     for (const day of DAYS) {
       const assigned = rosterState[day] || {};
-      results[day] = { rooms: {}, rp: null, violations: [] };
+      results[day] = { rooms: {}, rp: null, violations: [], suggestions: [] };
+
+      const availableToday = availability ? EDUCATORS.filter(e => availability[e.id][day]) : [];
 
       for (const room of ROOMS) {
         const inRoom = EDUCATORS.filter(e => assigned[e.id] === room.id);
-        const minRequired = Math.ceil(room.capacity * OCCUPANCY / room.ratio);
-        const ok = inRoom.length >= minRequired;
+        const ok = inRoom.length >= room.minRequired;
         const soleIssue = inRoom.length === 1 && !SOLE_EDUCATOR_MIN.includes(inRoom[0]?.qual);
-        results[day].rooms[room.id] = { count: inRoom.length, required: minRequired, compliant: ok && !soleIssue };
-        if (!ok) results[day].violations.push(`${room.label}: needs ${minRequired}, has ${inRoom.length}`);
+        results[day].rooms[room.id] = { count: inRoom.length, required: room.minRequired, compliant: ok && !soleIssue };
+        if (!ok) results[day].violations.push(`${room.label}: needs ${room.minRequired}, has ${inRoom.length}`);
         if (soleIssue) results[day].violations.push(`${room.label}: Cert III cannot be sole educator`);
       }
 
       const rpToday = EDUCATORS.find(e => e.rpEligible && assigned[e.id] && assigned[e.id] !== 'off');
       results[day].rp = rpToday ? rpToday.name : null;
       if (!rpToday) results[day].violations.push('No Responsible Person on site');
+
+      // Suggestions
+      if (availability) {
+        const shortage = TOTAL_REQUIRED - availableToday.length;
+        if (shortage > 0) {
+          results[day].suggestions.push({
+            type: 'critical',
+            text: `Only ${availableToday.length} educators available, ${TOTAL_REQUIRED} required. You need ${shortage} more to fully staff all rooms today.`,
+          });
+        }
+
+        for (const room of ROOMS) {
+          const r = results[day].rooms[room.id];
+          if (!r.compliant) {
+            const deficit = r.required - r.count;
+            const overstaffed = ROOMS.find(other => {
+              const c = EDUCATORS.filter(e => assigned[e.id] === other.id).length;
+              return c > other.minRequired;
+            });
+            if (overstaffed) {
+              results[day].suggestions.push({ type: 'move', text: `Move 1 educator from ${overstaffed.label} → ${room.label} to fix the ratio.` });
+            } else {
+              results[day].suggestions.push({ type: 'hire', text: `${room.label} needs ${deficit} more educator${deficit > 1 ? 's' : ''}. Consider calling in additional staff.` });
+            }
+          }
+        }
+
+        if (!rpToday) {
+          const rpFree = availableToday.filter(e => e.rpEligible && !assigned[e.id]);
+          if (rpFree.length > 0) {
+            results[day].suggestions.push({ type: 'rp', text: `Assign ${rpFree[0].name} (${rpFree[0].qual}) to any room — they will serve as Responsible Person.` });
+          } else {
+            const rpAssigned = availableToday.find(e => e.rpEligible);
+            if (!rpAssigned) {
+              results[day].suggestions.push({ type: 'rp', text: `No ECT or Diploma-qualified educators available today. An RP-eligible educator must be on site.` });
+            }
+          }
+        }
+      }
     }
     return results;
   }
@@ -419,19 +462,20 @@
         });
 
       let i = 0;
-      // First pass: one per room in order
+      // Fill each room up to its minRequired (Nursery=2, Toddlers=3, Preschool=2)
       for (const room of ROOMS) {
-        if (i < avail.length) { roster[day][avail[i].id] = room.id; i++; }
+        for (let slot = 0; slot < room.minRequired && i < avail.length; slot++) {
+          roster[day][avail[i].id] = room.id;
+          i++;
+        }
       }
-      // Second pass: second educator per room (reach minimum of 2)
-      for (const room of ROOMS) {
-        if (i < avail.length) { roster[day][avail[i].id] = room.id; i++; }
-      }
-      // Any remaining: assign to room with fewest
+      // Any remaining: assign to room with biggest current deficit
       while (i < avail.length) {
-        const counts = ROOMS.map(r => ({ id: r.id, c: Object.values(roster[day]).filter(v => v === r.id).length }));
-        counts.sort((a, b) => a.c - b.c);
-        roster[day][avail[i].id] = counts[0].id;
+        const deficits = ROOMS.map(r => ({
+          id: r.id,
+          d: r.minRequired - Object.values(roster[day]).filter(v => v === r.id).length,
+        })).sort((a, b) => b.d - a.d);
+        roster[day][avail[i].id] = deficits[0].id;
         i++;
       }
     }
@@ -467,10 +511,11 @@
           role: 'user',
           content: `Generate a compliant weekly roster for Sunshine Early Learning Centre.
 
-ROOMS AND MINIMUM STAFFING (at 80% occupancy):
-- Nursery: capacity 8, ratio 1:4 → minimum 2 educators per day
-- Toddlers: capacity 12, ratio 1:5 → minimum 2 educators per day
-- Preschool: capacity 20, ratio 1:11 → minimum 2 educators per day
+ROOMS AND MINIMUM STAFFING (full capacity, ceil(capacity ÷ ratio)):
+- Nursery: 8 ÷ 4 = 2 → minimum 2 educators per day
+- Toddlers: 12 ÷ 5 = 2.4 → round up → minimum 3 educators per day
+- Preschool: 20 ÷ 11 = 1.82 → round up → minimum 2 educators per day
+- Total minimum per day: 7 educators
 
 COMPLIANCE RULES:
 - Every day must have at least one Responsible Person on site (rpEligible: true educators only)
@@ -559,8 +604,46 @@ RETURN FORMAT — JSON only, no other text:
       }));
     };
 
+    // Per-day staffing count vs requirement
+    const dayStaffing = DAYS.map(day => ({
+      day,
+      available: EDUCATORS.filter(e => availability[e.id][day]).length,
+      required: TOTAL_REQUIRED,
+    }));
+    const understaffedDays = dayStaffing.filter(d => d.available < d.required);
+
     return (
       <div>
+        {understaffedDays.length > 0 && (
+          <div style={{
+            background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10,
+            padding: '14px 18px', marginBottom: 16,
+          }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#991B1B', marginBottom: 8 }}>
+              🚨 Understaffing Warning
+            </div>
+            <div style={{ fontSize: 13, color: '#7F1D1D', marginBottom: 10 }}>
+              You need <strong>{TOTAL_REQUIRED} educators per day</strong> to meet ACECQA ratios
+              (Nursery {ROOMS[0].minRequired} + Toddlers {ROOMS[1].minRequired} + Preschool {ROOMS[2].minRequired}).
+              The following days fall short:
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+              {understaffedDays.map(({ day, available, required }) => (
+                <div key={day} style={{
+                  background: '#FEE2E2', borderRadius: 6, padding: '4px 10px',
+                  fontSize: 12, fontWeight: 600, color: '#991B1B',
+                }}>
+                  {DAY_LABELS[day]}: {available}/{required} staff
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 12, color: '#991B1B', fontStyle: 'italic' }}>
+              💡 This roster cannot fully meet ratio requirements with current staffing.
+              Consider hiring additional educators or reducing room capacity on short days.
+            </div>
+          </div>
+        )}
+
         <div className="card">
           <div className="card-header">
             <div>
@@ -715,23 +798,27 @@ RETURN FORMAT — JSON only, no other text:
 
     const totalViolations = DAYS.reduce((sum, d) => sum + compliance[d].violations.length, 0);
     const isCompliant = totalViolations === 0;
+    const suggestionIcons = { critical: '🚨', hire: '👤', move: '↔️', rp: '🔑' };
 
     return (
       <div className="card" style={{ borderRadius: 10, overflow: 'hidden' }}>
         <div className={`cp-banner ${isCompliant ? 'cp-banner-ok' : 'cp-banner-fail'}`}>
-          {isCompliant
-            ? '✅ Roster is compliant'
-            : `❌ ${totalViolations} issue${totalViolations > 1 ? 's' : ''} found`}
+          {isCompliant ? '✅ Roster is compliant' : `❌ ${totalViolations} issue${totalViolations > 1 ? 's' : ''} found`}
+        </div>
+
+        {/* Staffing requirement summary */}
+        <div style={{ padding: '10px 16px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', fontSize: 11, color: '#64748B' }}>
+          <strong style={{ color: '#475569' }}>Required per day:</strong>
+          {' '}{ROOMS.map(r => `${r.label} ${r.minRequired}`).join(' + ')} = <strong style={{ color: '#1E293B' }}>{TOTAL_REQUIRED} total</strong>
         </div>
 
         {DAYS.map(day => {
           const d = compliance[day];
           const dayOk = d.violations.length === 0;
+          const hasCritical = d.suggestions.some(s => s.type === 'critical');
           return (
             <div key={day} className="cp-day">
-              <div className="cp-day-title">
-                {DAY_LABELS[day]} {!dayOk && '⚠'}
-              </div>
+              <div className="cp-day-title">{DAY_LABELS[day]} {!dayOk && '⚠'}</div>
 
               {ROOMS.map(room => {
                 const r = d.rooms[room.id];
@@ -741,7 +828,7 @@ RETURN FORMAT — JSON only, no other text:
                       <span style={{ width: 8, height: 8, borderRadius: 2, background: room.dot, display: 'inline-block' }} />
                       {room.label}
                     </span>
-                    <span>{r.compliant ? '✅' : '❌'} {r.count}/{r.required} staff</span>
+                    <span>{r.compliant ? '✅' : '❌'} {r.count}/{r.required}</span>
                   </div>
                 );
               })}
@@ -752,6 +839,28 @@ RETURN FORMAT — JSON only, no other text:
                   {d.rp ? `✅ ${d.rp.split(' ')[0]}` : '❌ None'}
                 </span>
               </div>
+
+              {d.suggestions.length > 0 && (
+                <div style={{ marginTop: 7, paddingTop: 7, borderTop: '1px solid #F1F5F9' }}>
+                  {d.suggestions.map((s, i) => (
+                    <div key={i} style={{
+                      fontSize: 11,
+                      lineHeight: 1.4,
+                      padding: '4px 7px',
+                      borderRadius: 5,
+                      marginBottom: 3,
+                      background: s.type === 'critical' ? '#FEF2F2' : '#FFFBEB',
+                      color: s.type === 'critical' ? '#991B1B' : '#92400E',
+                      display: 'flex',
+                      gap: 5,
+                      alignItems: 'flex-start',
+                    }}>
+                      <span style={{ flexShrink: 0 }}>{suggestionIcons[s.type]}</span>
+                      <span>{s.text}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })}
@@ -967,10 +1076,10 @@ RETURN FORMAT — JSON only, no other text:
     const setRosterState = useCallback((updater) => {
       setRosterStateRaw(prev => {
         const next = typeof updater === 'function' ? updater(prev) : updater;
-        setCompliance(checkCompliance(next));
+        setCompliance(checkCompliance(next, availability));
         return next;
       });
-    }, []);
+    }, [availability]);
 
     const handleGenerate = async (useMock = false) => {
       if (!useMock && !apiKey.trim()) {
@@ -991,7 +1100,8 @@ RETURN FORMAT — JSON only, no other text:
           const aiRoster = await callClaudeAPI(apiKey, availability);
           roster = transformAIRoster(aiRoster, availability);
         }
-        setRosterState(roster);
+        setRosterStateRaw(roster);
+        setCompliance(checkCompliance(roster, availability));
         setTab('roster');
       } catch (err) {
         setError(err.message || 'Unknown error');
