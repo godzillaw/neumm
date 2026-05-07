@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sunshine Early Learning — AI Rostering</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      background: #F1F5F9;
+      color: #1E293B;
+      min-height: 100vh;
+      font-size: 14px;
+    }
+
+    /* ---- Header ---- */
+    .header {
+      background: #1B3A6B;
+      color: white;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+      gap: 16px;
+    }
+    .header-left h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+    .header-left p  { font-size: 12px; opacity: 0.65; margin-top: 2px; }
+    .api-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .api-row label { font-size: 12px; color: rgba(255,255,255,0.75); white-space: nowrap; }
+    .api-row input {
+      padding: 7px 12px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.25);
+      background: rgba(255,255,255,0.1);
+      color: white;
+      font-size: 13px;
+      width: 230px;
+      outline: none;
+    }
+    .api-row input:focus { border-color: rgba(255,255,255,0.6); }
+    .api-row input::placeholder { color: rgba(255,255,255,0.4); }
+
+    /* ---- Tabs ---- */
+    .tabs {
+      background: white;
+      border-bottom: 1px solid #E2E8F0;
+      padding: 0 24px;
+      display: flex;
+    }
+    .tab {
+      padding: 13px 20px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      color: #64748B;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s;
+      user-select: none;
+    }
+    .tab:hover:not(.tab-disabled) { color: #1B3A6B; }
+    .tab.tab-active { color: #1B3A6B; border-bottom-color: #1B3A6B; }
+    .tab.tab-disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* ---- Layout ---- */
+    .content { padding: 20px 24px; max-width: 1360px; margin: 0 auto; }
+
+    /* ---- Cards ---- */
+    .card {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid #F1F5F9;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .card-header h2 { font-size: 15px; font-weight: 600; }
+    .card-header p  { font-size: 12px; color: #94A3B8; margin-top: 2px; }
+
+    /* ---- Tables ---- */
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      padding: 10px 16px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #64748B;
+      background: #F8FAFC;
+      border-bottom: 1px solid #E2E8F0;
+    }
+    td {
+      padding: 10px 16px;
+      border-bottom: 1px solid #F8FAFC;
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #FAFBFC; }
+
+    /* ---- Buttons ---- */
+    .btn-primary {
+      background: #1B3A6B;
+      color: white;
+      border: none;
+      padding: 11px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.15s;
+      letter-spacing: -0.1px;
+    }
+    .btn-primary:hover:not(:disabled) { background: #254d8f; }
+    .btn-primary:disabled { background: #94A3B8; cursor: not-allowed; }
+
+    .btn-ghost {
+      background: transparent;
+      color: #64748B;
+      border: 1px solid #CBD5E1;
+      padding: 9px 18px;
+      border-radius: 7px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-ghost:hover { background: #F8FAFC; border-color: #94A3B8; color: #475569; }
+
+    /* ---- Spinner ---- */
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ---- Error banner ---- */
+    .error-banner {
+      background: #FEF2F2;
+      border: 1px solid #FECACA;
+      border-radius: 8px;
+      padding: 11px 16px;
+      color: #DC2626;
+      font-size: 13px;
+    }
+    .error-banner strong { display: block; margin-bottom: 2px; }
+
+    /* ---- Badges ---- */
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .badge-ect      { background: #DBEAFE; color: #1D4ED8; }
+    .badge-diploma  { background: #D1FAE5; color: #065F46; }
+    .badge-cert3    { background: #F1F5F9; color: #475569; }
+    .badge-rp       { background: #DCFCE7; color: #166534; }
+    .badge-no-rp    { background: #F1F5F9; color: #94A3B8; }
+
+    /* ---- Avatar ---- */
+    .avatar {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      background: #E2E8F0;
+      color: #475569;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    /* ---- Availability checkboxes ---- */
+    .av-checkbox {
+      width: 18px; height: 18px;
+      cursor: pointer;
+      accent-color: #1B3A6B;
+    }
+
+    /* ---- Roster grid ---- */
+    .roster-layout {
+      display: flex;
+      gap: 18px;
+      align-items: flex-start;
+    }
+    .roster-main { flex: 1; min-width: 0; }
+    .compliance-sidebar { width: 300px; flex-shrink: 0; }
+
+    .room-chip {
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: filter 0.1s;
+      line-height: 1.35;
+      min-width: 88px;
+    }
+    .room-chip:hover { filter: brightness(0.93); }
+    .room-chip-off {
+      background: #F1F5F9;
+      color: #94A3B8;
+      font-weight: 400;
+    }
+    .room-chip-unavail {
+      background: #F8FAFC;
+      color: #E2E8F0;
+      cursor: default;
+      min-width: 88px;
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .rp-pill {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 3px 7px;
+      border-radius: 4px;
+      margin-top: 4px;
+      white-space: nowrap;
+    }
+    .rp-ok      { background: #EFF6FF; color: #1D4ED8; }
+    .rp-missing { background: #FEF2F2; color: #DC2626; }
+
+    .hours-chip {
+      background: #EFF6FF;
+      color: #1D4ED8;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .hours-chip-zero { background: #F8FAFC; color: #CBD5E1; }
+
+    /* ---- Compliance panel ---- */
+    .cp-banner {
+      padding: 13px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      border-radius: 10px 10px 0 0;
+    }
+    .cp-banner-ok   { background: #D1FAE5; color: #065F46; }
+    .cp-banner-fail { background: #FEF2F2; color: #DC2626; }
+
+    .cp-day {
+      padding: 11px 16px;
+      border-bottom: 1px solid #F1F5F9;
+    }
+    .cp-day:last-child { border-bottom: none; }
+    .cp-day-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #64748B;
+      margin-bottom: 5px;
+    }
+    .cp-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      padding: 1px 0;
+    }
+    .cp-ok   { color: #059669; }
+    .cp-fail { color: #DC2626; }
+
+    /* ---- Legend ---- */
+    .legend {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #64748B;
+    }
+    .legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+
+    /* ---- Action bar ---- */
+    .action-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 0 0 0;
+      flex-wrap: wrap;
+    }
+
+    /* ---- Day header cell ---- */
+    .day-th { text-align: center; min-width: 108px; padding: 10px 8px; }
+    .day-th-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748B; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+  const { useState, useCallback } = React;
+
+  /* ================================================================
+     CONSTANTS
+  ================================================================ */
+  const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+  const DAY_LABELS = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday' };
+
+  const ROOMS = [
+    { id: 'nursery',   label: 'Nursery',   capacity: 8,  ratio: 4,  bg: '#DBEAFE', text: '#1D4ED8', dot: '#3B82F6' },
+    { id: 'toddlers',  label: 'Toddlers',  capacity: 12, ratio: 5,  bg: '#D1FAE5', text: '#065F46', dot: '#10B981' },
+    { id: 'preschool', label: 'Preschool', capacity: 20, ratio: 11, bg: '#FEF3C7', text: '#92400E', dot: '#F59E0B' },
+  ];
+
+  const OCCUPANCY = 0.8;
+  const SOLE_EDUCATOR_MIN = ['Diploma', 'ECT'];
+  const ROOM_CYCLE = ['nursery', 'toddlers', 'preschool', null];
+
+  const EDUCATORS = [
+    { id: 1, name: 'Sarah Mitchell', qual: 'ECT',      rpEligible: true,  availability: { Mon: true,  Tue: true,  Wed: true,  Thu: true,  Fri: true  }, start: '08:00', end: '16:00' },
+    { id: 2, name: 'James Chen',     qual: 'Diploma',  rpEligible: true,  availability: { Mon: true,  Tue: false, Wed: true,  Thu: false, Fri: true  }, start: '07:00', end: '15:00' },
+    { id: 3, name: 'Aisha Okonkwo',  qual: 'Diploma',  rpEligible: true,  availability: { Mon: false, Tue: true,  Wed: false, Thu: true,  Fri: true  }, start: '09:00', end: '17:00' },
+    { id: 4, name: 'Marcus Rivera',  qual: 'Cert III', rpEligible: false, availability: { Mon: true,  Tue: true,  Wed: false, Thu: true,  Fri: false }, start: '07:00', end: '15:00' },
+    { id: 5, name: 'Priya Sharma',   qual: 'Cert III', rpEligible: false, availability: { Mon: false, Tue: false, Wed: true,  Thu: true,  Fri: true  }, start: '10:00', end: '18:00' },
+    { id: 6, name: 'Tom Williams',   qual: 'ECT',      rpEligible: true,  availability: { Mon: true,  Tue: false, Wed: true,  Thu: false, Fri: false }, start: '08:00', end: '16:00' },
+  ];
+
+  /* ================================================================
+     COMPLIANCE CHECK (runs client-side after every change)
+  ================================================================ */
+  function checkCompliance(rosterState) {
+    const results = {};
+    for (const day of DAYS) {
+      const assigned = rosterState[day] || {};
+      results[day] = { rooms: {}, rp: null, violations: [] };
+
+      for (const room of ROOMS) {
+        const inRoom = EDUCATORS.filter(e => assigned[e.id] === room.id);
+        const minRequired = Math.ceil(room.capacity * OCCUPANCY / room.ratio);
+        const ok = inRoom.length >= minRequired;
+        const soleIssue = inRoom.length === 1 && !SOLE_EDUCATOR_MIN.includes(inRoom[0]?.qual);
+        results[day].rooms[room.id] = { count: inRoom.length, required: minRequired, compliant: ok && !soleIssue };
+        if (!ok) results[day].violations.push(`${room.label}: needs ${minRequired}, has ${inRoom.length}`);
+        if (soleIssue) results[day].violations.push(`${room.label}: Cert III cannot be sole educator`);
+      }
+
+      const rpToday = EDUCATORS.find(e => e.rpEligible && assigned[e.id] && assigned[e.id] !== 'off');
+      results[day].rp = rpToday ? rpToday.name : null;
+      if (!rpToday) results[day].violations.push('No Responsible Person on site');
+    }
+    return results;
+  }
+
+  /* ================================================================
+     HELPERS
+  ================================================================ */
+  function initials(name) {
+    return name.split(' ').map(n => n[0]).join('');
+  }
+
+  function shiftHours(edu) {
+    const [sh, sm] = edu.start.split(':').map(Number);
+    const [eh, em] = edu.end.split(':').map(Number);
+    return (eh + em / 60) - (sh + sm / 60);
+  }
+
+  function weeklyHours(educatorId, rosterState) {
+    const edu = EDUCATORS.find(e => e.id === educatorId);
+    if (!edu) return 0;
+    const h = shiftHours(edu);
+    const daysWorked = DAYS.filter(d => {
+      const a = rosterState[d]?.[educatorId];
+      return a && a !== 'off';
+    }).length;
+    return daysWorked * h;
+  }
+
+  /* ================================================================
+     MOCK ROSTER GENERATOR (used as fallback when no API key)
+  ================================================================ */
+  function generateMockRoster(availability) {
+    const Q = { ECT: 0, Diploma: 1, 'Cert III': 2 };
+    const roster = {};
+    for (const day of DAYS) {
+      roster[day] = {};
+      const avail = EDUCATORS
+        .filter(e => availability[e.id][day])
+        .sort((a, b) => {
+          if (a.rpEligible !== b.rpEligible) return a.rpEligible ? -1 : 1;
+          return Q[a.qual] - Q[b.qual];
+        });
+
+      let i = 0;
+      // First pass: one per room in order
+      for (const room of ROOMS) {
+        if (i < avail.length) { roster[day][avail[i].id] = room.id; i++; }
+      }
+      // Second pass: second educator per room (reach minimum of 2)
+      for (const room of ROOMS) {
+        if (i < avail.length) { roster[day][avail[i].id] = room.id; i++; }
+      }
+      // Any remaining: assign to room with fewest
+      while (i < avail.length) {
+        const counts = ROOMS.map(r => ({ id: r.id, c: Object.values(roster[day]).filter(v => v === r.id).length }));
+        counts.sort((a, b) => a.c - b.c);
+        roster[day][avail[i].id] = counts[0].id;
+        i++;
+      }
+    }
+    return roster;
+  }
+
+  /* ================================================================
+     CLAUDE API CALL
+  ================================================================ */
+  async function callClaudeAPI(apiKey, availability) {
+    const educators = EDUCATORS.map(e => ({
+      id: e.id,
+      name: e.name,
+      qualification: e.qual,
+      rpEligible: e.rpEligible,
+      availability: Object.entries(availability[e.id]).filter(([, v]) => v).map(([d]) => d),
+      shiftHours: `${e.start} to ${e.end}`,
+    }));
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2048,
+        system: 'You are a rostering assistant for Australian early childhood education centres. You apply ACECQA staffing ratio rules and Children\'s Services Award qualification requirements ONLY — no pay rates or wage calculations. Always return valid JSON only. No prose, no markdown, no explanation.',
+        messages: [{
+          role: 'user',
+          content: `Generate a compliant weekly roster for Sunshine Early Learning Centre.
+
+ROOMS AND MINIMUM STAFFING (at 80% occupancy):
+- Nursery: capacity 8, ratio 1:4 → minimum 2 educators per day
+- Toddlers: capacity 12, ratio 1:5 → minimum 2 educators per day
+- Preschool: capacity 20, ratio 1:11 → minimum 2 educators per day
+
+COMPLIANCE RULES:
+- Every day must have at least one Responsible Person on site (rpEligible: true educators only)
+- A Cert III qualified educator cannot be the sole educator in any room
+- Only assign educators on days listed in their availability array
+- Do not show any pay rates, wages, or dollar amounts
+- Try to distribute educators across rooms to meet the minimum staffing ratios
+
+EDUCATORS (current availability from director grid):
+${JSON.stringify(educators, null, 2)}
+
+RETURN FORMAT — JSON only, no other text:
+{
+  "Mon": {
+    "responsiblePerson": "Sarah Mitchell",
+    "assignments": [
+      { "educatorId": 1, "room": "nursery" },
+      { "educatorId": 2, "room": "preschool" }
+    ]
+  },
+  "Tue": { "responsiblePerson": "...", "assignments": [] },
+  "Wed": { "responsiblePerson": "...", "assignments": [] },
+  "Thu": { "responsiblePerson": "...", "assignments": [] },
+  "Fri": { "responsiblePerson": "...", "assignments": [] }
+}`,
+        }],
+      }),
+    });
+
+    if (!res.ok) {
+      let msg = `API error ${res.status}`;
+      try { const e = await res.json(); msg = e.error?.message || msg; } catch {}
+      throw new Error(msg);
+    }
+
+    const data = await res.json();
+    const text = data.content[0].text.trim();
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('AI returned unexpected format — no JSON found');
+    return JSON.parse(match[0]);
+  }
+
+  function transformAIRoster(aiRoster, availability) {
+    const roster = {};
+    for (const day of DAYS) {
+      roster[day] = {};
+      const dayData = aiRoster[day];
+      if (dayData?.assignments) {
+        for (const a of dayData.assignments) {
+          // Only apply if educator is actually available that day
+          if (availability[a.educatorId]?.[day]) {
+            roster[day][a.educatorId] = a.room;
+          }
+        }
+      }
+    }
+    return roster;
+  }
+
+  /* ================================================================
+     SUB-COMPONENTS
+  ================================================================ */
+  function QualBadge({ qual }) {
+    const cls = qual === 'ECT' ? 'badge-ect' : qual === 'Diploma' ? 'badge-diploma' : 'badge-cert3';
+    return <span className={`badge ${cls}`}>{qual}</span>;
+  }
+
+  function RpBadge({ rpEligible }) {
+    return rpEligible
+      ? <span className="badge badge-rp">RP ✓</span>
+      : <span className="badge badge-no-rp">—</span>;
+  }
+
+  function Avatar({ name }) {
+    return <div className="avatar">{initials(name)}</div>;
+  }
+
+  /* ----------------------------------------------------------------
+     AVAILABILITY TAB
+  ---------------------------------------------------------------- */
+  function AvailabilityTab({ availability, setAvailability, onGenerate, loading, error }) {
+    const toggle = (eduId, day) => {
+      setAvailability(prev => ({
+        ...prev,
+        [eduId]: { ...prev[eduId], [day]: !prev[eduId][day] },
+      }));
+    };
+
+    return (
+      <div>
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <h2>Staff Availability</h2>
+              <p>Check or uncheck days to update before generating. Click Generate when ready.</p>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style={{ width: 220 }}>Educator</th>
+                <th style={{ width: 140 }}>Qualification</th>
+                {DAYS.map(d => (
+                  <th key={d} style={{ textAlign: 'center', width: 70 }}>{d}</th>
+                ))}
+                <th>Shift Hours</th>
+              </tr>
+            </thead>
+            <tbody>
+              {EDUCATORS.map(edu => (
+                <tr key={edu.id}>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <Avatar name={edu.name} />
+                      <span style={{ fontWeight: 500 }}>{edu.name}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                      <QualBadge qual={edu.qual} />
+                      <RpBadge rpEligible={edu.rpEligible} />
+                    </div>
+                  </td>
+                  {DAYS.map(d => (
+                    <td key={d} style={{ textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        className="av-checkbox"
+                        checked={availability[edu.id][d]}
+                        onChange={() => toggle(edu.id, d)}
+                      />
+                    </td>
+                  ))}
+                  <td style={{ color: '#64748B', whiteSpace: 'nowrap' }}>
+                    {edu.start} – {edu.end}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {error && (
+          <div className="error-banner" style={{ marginTop: 14 }}>
+            <strong>⚠ Error: {error}</strong>
+            Check your API key or use the demo mode button below.
+          </div>
+        )}
+
+        <div className="action-bar">
+          <button
+            className="btn-primary"
+            onClick={() => onGenerate(false)}
+            disabled={loading}
+          >
+            {loading
+              ? <><div className="spinner" /> AI is building your compliant roster…</>
+              : '✦ Generate Compliant Roster'}
+          </button>
+          <button
+            className="btn-ghost"
+            onClick={() => onGenerate(true)}
+            disabled={loading}
+            title="Generate a sample roster without an API key — for demos"
+          >
+            ⚡ Demo Mode (no API key)
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /* ----------------------------------------------------------------
+     ROSTER TAB
+  ---------------------------------------------------------------- */
+  function RoomChip({ educatorId, day, assignment, isAvailable, onClick }) {
+    if (!isAvailable) {
+      return <div className="room-chip-unavail">—</div>;
+    }
+
+    if (!assignment) {
+      return (
+        <div
+          className="room-chip room-chip-off"
+          onClick={onClick}
+          title="Click to assign a room"
+        >
+          Off
+        </div>
+      );
+    }
+
+    const room = ROOMS.find(r => r.id === assignment);
+    const edu = EDUCATORS.find(e => e.id === educatorId);
+    return (
+      <div
+        className="room-chip"
+        style={{ background: room.bg, color: room.text }}
+        onClick={onClick}
+        title="Click to change room assignment"
+      >
+        <div>{room.label}</div>
+        <div style={{ fontSize: 10, fontWeight: 400, opacity: 0.8 }}>{edu.start}–{edu.end}</div>
+      </div>
+    );
+  }
+
+  function CompliancePanel({ compliance }) {
+    if (!compliance) return null;
+
+    const totalViolations = DAYS.reduce((sum, d) => sum + compliance[d].violations.length, 0);
+    const isCompliant = totalViolations === 0;
+
+    return (
+      <div className="card" style={{ borderRadius: 10, overflow: 'hidden' }}>
+        <div className={`cp-banner ${isCompliant ? 'cp-banner-ok' : 'cp-banner-fail'}`}>
+          {isCompliant
+            ? '✅ Roster is compliant'
+            : `❌ ${totalViolations} issue${totalViolations > 1 ? 's' : ''} found`}
+        </div>
+
+        {DAYS.map(day => {
+          const d = compliance[day];
+          const dayOk = d.violations.length === 0;
+          return (
+            <div key={day} className="cp-day">
+              <div className="cp-day-title">
+                {DAY_LABELS[day]} {!dayOk && '⚠'}
+              </div>
+
+              {ROOMS.map(room => {
+                const r = d.rooms[room.id];
+                return (
+                  <div key={room.id} className={`cp-row ${r.compliant ? 'cp-ok' : 'cp-fail'}`}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 2, background: room.dot, display: 'inline-block' }} />
+                      {room.label}
+                    </span>
+                    <span>{r.compliant ? '✅' : '❌'} {r.count}/{r.required} staff</span>
+                  </div>
+                );
+              })}
+
+              <div className={`cp-row ${d.rp ? 'cp-ok' : 'cp-fail'}`} style={{ marginTop: 3, paddingTop: 3, borderTop: '1px dashed #F1F5F9' }}>
+                <span>Responsible Person</span>
+                <span style={{ maxWidth: 120, textAlign: 'right', fontSize: 11 }}>
+                  {d.rp ? `✅ ${d.rp.split(' ')[0]}` : '❌ None'}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  function RosterTab({ rosterState, setRosterState, availability, compliance }) {
+    const cycleRoom = (educatorId, day) => {
+      const current = rosterState[day]?.[educatorId] ?? null;
+      const idx = ROOM_CYCLE.indexOf(current);
+      const next = ROOM_CYCLE[(idx + 1) % ROOM_CYCLE.length];
+      setRosterState(prev => ({
+        ...prev,
+        [day]: { ...prev[day], [educatorId]: next },
+      }));
+    };
+
+    return (
+      <div className="roster-layout">
+        {/* Main grid */}
+        <div className="roster-main">
+          <div className="card">
+            <div className="card-header">
+              <div>
+                <h2>Weekly Roster</h2>
+                <p>Click any room cell to cycle assignment: Nursery → Toddlers → Preschool → Off</p>
+              </div>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ minWidth: 680 }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: 200 }}>Educator</th>
+                    {DAYS.map(day => (
+                      <th key={day} className="day-th">
+                        <div className="day-th-label">{DAY_LABELS[day]}</div>
+                        {compliance?.[day] && (
+                          <div
+                            className={`rp-pill ${compliance[day].rp ? 'rp-ok' : 'rp-missing'}`}
+                          >
+                            {compliance[day].rp
+                              ? `RP: ${compliance[day].rp.split(' ')[0]}`
+                              : '⚠ No RP'}
+                          </div>
+                        )}
+                      </th>
+                    ))}
+                    <th style={{ textAlign: 'right', paddingRight: 16 }}>Hrs/wk</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {EDUCATORS.map(edu => {
+                    const hrs = weeklyHours(edu.id, rosterState);
+                    return (
+                      <tr key={edu.id}>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                            <Avatar name={edu.name} />
+                            <div>
+                              <div style={{ fontWeight: 500, fontSize: 13 }}>{edu.name}</div>
+                              <QualBadge qual={edu.qual} />
+                            </div>
+                          </div>
+                        </td>
+                        {DAYS.map(day => {
+                          const isAvail = availability[edu.id][day];
+                          const assignment = rosterState[day]?.[edu.id] ?? null;
+                          return (
+                            <td key={day} style={{ padding: '7px 8px', textAlign: 'center' }}>
+                              <RoomChip
+                                educatorId={edu.id}
+                                day={day}
+                                assignment={assignment}
+                                isAvailable={isAvail}
+                                onClick={isAvail ? () => cycleRoom(edu.id, day) : undefined}
+                              />
+                            </td>
+                          );
+                        })}
+                        <td style={{ textAlign: 'right', paddingRight: 16 }}>
+                          <span className={hrs > 0 ? 'hours-chip' : 'hours-chip-zero'}>
+                            {hrs}h
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Legend */}
+          <div className="legend">
+            {ROOMS.map(room => (
+              <div key={room.id} className="legend-item">
+                <div className="legend-dot" style={{ background: room.dot }} />
+                {room.label}
+              </div>
+            ))}
+            <div className="legend-item">
+              <div className="legend-dot" style={{ background: '#CBD5E1' }} />
+              Off / Not assigned
+            </div>
+            <div className="legend-item">
+              <div className="legend-dot" style={{ background: '#E2E8F0' }} />
+              Not available
+            </div>
+          </div>
+        </div>
+
+        {/* Compliance sidebar */}
+        <div className="compliance-sidebar">
+          <CompliancePanel compliance={compliance} />
+        </div>
+      </div>
+    );
+  }
+
+  /* ----------------------------------------------------------------
+     EDUCATORS TAB
+  ---------------------------------------------------------------- */
+  function EducatorsTab({ rosterState }) {
+    const hasRoster = Object.keys(rosterState).length > 0;
+    return (
+      <div className="card">
+        <div className="card-header">
+          <h2>Educator Summary</h2>
+          {!hasRoster && <span style={{ fontSize: 12, color: '#94A3B8' }}>Generate a roster first to see weekly hours</span>}
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Qualification</th>
+              <th>RP Eligible</th>
+              <th>Available Days</th>
+              <th style={{ textAlign: 'right' }}>Hours This Week</th>
+            </tr>
+          </thead>
+          <tbody>
+            {EDUCATORS.map(edu => {
+              const availDays = DAYS.filter(d => edu.availability[d]);
+              const hrs = hasRoster ? weeklyHours(edu.id, rosterState) : null;
+              return (
+                <tr key={edu.id}>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <Avatar name={edu.name} />
+                      <span style={{ fontWeight: 500 }}>{edu.name}</span>
+                    </div>
+                  </td>
+                  <td><QualBadge qual={edu.qual} /></td>
+                  <td><RpBadge rpEligible={edu.rpEligible} /></td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      {DAYS.map(d => (
+                        <span key={d} style={{
+                          padding: '1px 6px',
+                          borderRadius: 4,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          background: availDays.includes(d) ? '#EFF6FF' : '#F8FAFC',
+                          color: availDays.includes(d) ? '#1D4ED8' : '#CBD5E1',
+                        }}>{d}</span>
+                      ))}
+                    </div>
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    {hrs !== null
+                      ? <span className={hrs > 0 ? 'hours-chip' : 'hours-chip-zero'}>{hrs}h</span>
+                      : <span style={{ color: '#CBD5E1' }}>—</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  /* ================================================================
+     APP ROOT
+  ================================================================ */
+  function App() {
+    const [tab, setTab] = useState('availability');
+    const [apiKey, setApiKey] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+
+    // Availability state — initialised from EDUCATORS constants
+    const [availability, setAvailability] = useState(() => {
+      const av = {};
+      for (const edu of EDUCATORS) av[edu.id] = { ...edu.availability };
+      return av;
+    });
+
+    const [rosterState, setRosterStateRaw] = useState({});
+    const [compliance, setCompliance] = useState(null);
+
+    // Wrapped setter that also re-runs compliance on every change
+    const setRosterState = useCallback((updater) => {
+      setRosterStateRaw(prev => {
+        const next = typeof updater === 'function' ? updater(prev) : updater;
+        setCompliance(checkCompliance(next));
+        return next;
+      });
+    }, []);
+
+    const handleGenerate = async (useMock = false) => {
+      if (!useMock && !apiKey.trim()) {
+        setError('Please enter your Anthropic API key in the header, or click "Demo Mode" to generate a sample roster.');
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        let roster;
+        if (useMock) {
+          // Small artificial delay for realism
+          await new Promise(r => setTimeout(r, 900));
+          roster = generateMockRoster(availability);
+        } else {
+          const aiRoster = await callClaudeAPI(apiKey, availability);
+          roster = transformAIRoster(aiRoster, availability);
+        }
+        setRosterState(roster);
+        setTab('roster');
+      } catch (err) {
+        setError(err.message || 'Unknown error');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const rosterReady = Object.keys(rosterState).length > 0;
+
+    return (
+      <div>
+        {/* Header */}
+        <div className="header">
+          <div className="header-left">
+            <h1>☀ Sunshine Early Learning Centre</h1>
+            <p>AI-Powered Rostering · ACECQA Compliance · Children's Services Award</p>
+          </div>
+          <div className="api-row">
+            <label htmlFor="apikey">Anthropic API Key</label>
+            <input
+              id="apikey"
+              type="password"
+              placeholder="sk-ant-…  (or use Demo Mode)"
+              value={apiKey}
+              onChange={e => setApiKey(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="tabs">
+          {[
+            { id: 'availability', label: '① Availability Grid' },
+            { id: 'roster',       label: '② Roster', locked: !rosterReady },
+            { id: 'educators',    label: '③ Educators' },
+          ].map(t => (
+            <div
+              key={t.id}
+              className={[
+                'tab',
+                tab === t.id ? 'tab-active' : '',
+                t.locked ? 'tab-disabled' : '',
+              ].join(' ')}
+              onClick={() => !t.locked && setTab(t.id)}
+              title={t.locked ? 'Generate a roster first' : ''}
+            >
+              {t.label}
+            </div>
+          ))}
+        </div>
+
+        {/* Main content */}
+        <div className="content">
+          {tab === 'availability' && (
+            <AvailabilityTab
+              availability={availability}
+              setAvailability={setAvailability}
+              onGenerate={handleGenerate}
+              loading={loading}
+              error={error}
+            />
+          )}
+          {tab === 'roster' && (
+            <RosterTab
+              rosterState={rosterState}
+              setRosterState={setRosterState}
+              availability={availability}
+              compliance={compliance}
+            />
+          )}
+          {tab === 'educators' && (
+            <EducatorsTab rosterState={rosterState} />
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
