@@ -551,7 +551,7 @@ RETURN FORMAT — JSON only, no other text:
   /* ----------------------------------------------------------------
      AVAILABILITY TAB
   ---------------------------------------------------------------- */
-  function AvailabilityTab({ availability, setAvailability, onGenerate, loading, error, apiKey, setApiKey }) {
+  function AvailabilityTab({ availability, setAvailability, onGenerate, loading, error, apiKey, setApiKey, keyLoaded }) {
     const toggle = (eduId, day) => {
       setAvailability(prev => ({
         ...prev,
@@ -621,26 +621,36 @@ RETURN FORMAT — JSON only, no other text:
         )}
 
         <div className="action-bar" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: 620 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>
-              Anthropic API Key
-            </label>
-            <input
-              type="password"
-              placeholder="sk-ant-…"
-              value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
-              style={{
-                flex: 1,
-                padding: '8px 12px',
-                borderRadius: 7,
-                border: '1px solid #CBD5E1',
-                fontSize: 13,
-                outline: 'none',
-                color: '#1E293B',
-              }}
-            />
-          </div>
+          {apiKey ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+              <span style={{ color: '#059669', fontWeight: 600 }}>✅ API key loaded</span>
+              <button
+                onClick={() => setApiKey('')}
+                style={{ background: 'none', border: 'none', color: '#94A3B8', fontSize: 12, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+              >change</button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: 620 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>
+                Anthropic API Key
+              </label>
+              <input
+                type="password"
+                placeholder="sk-ant-…"
+                value={apiKey}
+                onChange={e => setApiKey(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  borderRadius: 7,
+                  border: '1px solid #CBD5E1',
+                  fontSize: 13,
+                  outline: 'none',
+                  color: '#1E293B',
+                }}
+              />
+            </div>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
               className="btn-primary"
@@ -931,8 +941,17 @@ RETURN FORMAT — JSON only, no other text:
   function App() {
     const [tab, setTab] = useState('availability');
     const [apiKey, setApiKey] = useState('');
+    const [keyLoaded, setKeyLoaded] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+
+    React.useEffect(() => {
+      fetch('/api/roster-config')
+        .then(r => r.json())
+        .then(d => { if (d.anthropicKey) setApiKey(d.anthropicKey); })
+        .catch(() => {})
+        .finally(() => setKeyLoaded(true));
+    }, []);
 
     // Availability state — initialised from EDUCATORS constants
     const [availability, setAvailability] = useState(() => {
@@ -1026,6 +1045,7 @@ RETURN FORMAT — JSON only, no other text:
               error={error}
               apiKey={apiKey}
               setApiKey={setApiKey}
+              keyLoaded={keyLoaded}
             />
           )}
           {tab === 'roster' && (
