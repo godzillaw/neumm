@@ -551,7 +551,7 @@ RETURN FORMAT — JSON only, no other text:
   /* ----------------------------------------------------------------
      AVAILABILITY TAB
   ---------------------------------------------------------------- */
-  function AvailabilityTab({ availability, setAvailability, onGenerate, loading, error }) {
+  function AvailabilityTab({ availability, setAvailability, onGenerate, loading, error, apiKey, setApiKey }) {
     const toggle = (eduId, day) => {
       setAvailability(prev => ({
         ...prev,
@@ -620,24 +620,46 @@ RETURN FORMAT — JSON only, no other text:
           </div>
         )}
 
-        <div className="action-bar">
-          <button
-            className="btn-primary"
-            onClick={() => onGenerate(false)}
-            disabled={loading}
-          >
-            {loading
-              ? <><div className="spinner" /> AI is building your compliant roster…</>
-              : '✦ Generate Compliant Roster'}
-          </button>
-          <button
-            className="btn-ghost"
-            onClick={() => onGenerate(true)}
-            disabled={loading}
-            title="Generate a sample roster without an API key — for demos"
-          >
-            ⚡ Demo Mode (no API key)
-          </button>
+        <div className="action-bar" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: 620 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>
+              Anthropic API Key
+            </label>
+            <input
+              type="password"
+              placeholder="sk-ant-…"
+              value={apiKey}
+              onChange={e => setApiKey(e.target.value)}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                borderRadius: 7,
+                border: '1px solid #CBD5E1',
+                fontSize: 13,
+                outline: 'none',
+                color: '#1E293B',
+              }}
+            />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              className="btn-primary"
+              onClick={() => onGenerate(false)}
+              disabled={loading}
+            >
+              {loading
+                ? <><div className="spinner" /> AI is building your compliant roster…</>
+                : '✦ Generate Compliant Roster'}
+            </button>
+            <button
+              className="btn-ghost"
+              onClick={() => onGenerate(true)}
+              disabled={loading}
+              title="Generate a sample roster without an API key — for demos"
+            >
+              ⚡ Demo Mode (no API key)
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -969,16 +991,6 @@ RETURN FORMAT — JSON only, no other text:
             <h1>☀ Sunshine Early Learning Centre</h1>
             <p>AI-Powered Rostering · ACECQA Compliance · Children's Services Award</p>
           </div>
-          <div className="api-row">
-            <label htmlFor="apikey">Anthropic API Key</label>
-            <input
-              id="apikey"
-              type="password"
-              placeholder="sk-ant-…  (or use Demo Mode)"
-              value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
-            />
-          </div>
         </div>
 
         {/* Tabs */}
@@ -1012,6 +1024,8 @@ RETURN FORMAT — JSON only, no other text:
               onGenerate={handleGenerate}
               loading={loading}
               error={error}
+              apiKey={apiKey}
+              setApiKey={setApiKey}
             />
           )}
           {tab === 'roster' && (
